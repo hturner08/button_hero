@@ -262,10 +262,6 @@ void loop() {
   readMic();
 }
 
-void create_wave(int frequency){
-  (double*)ps_malloc(sizeof(double)*NUM_SAMPLES);
-  
-}
 void readMic(){ //Read value from microphone
   while(micros()-record_timer < 100){};
   int raw_reading = analogRead(A0);
