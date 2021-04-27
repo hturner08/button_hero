@@ -2,8 +2,8 @@
 #include <TFT_eSPI.h>
 #include <WiFiClientSecure.h>
 #include <iostream>
-#include <complex.h>
-#include "fft_gist.h"
+#include <complex>
+#include "fft_psram.h"
 class Button{
   public:
   uint32_t state_2_start_time;
@@ -131,8 +131,8 @@ const int DELAY = 1000;
 const int SAMPLE_FREQ = 10000;                          // Hz, telephone sample rate
 const int SAMPLE_DURATION = 1;                        // duration of fixed sampling (seconds)
 const int NUM_SAMPLES = 2*8192;  // number of of samples
-int * samples = (int*)ps_malloc(sizeof(int)*NUM_SAMPLES);
-std::complex<double> * frequencies = (std::complex<double>*)ps_malloc(sizeof(std::complex<double>)*8192); 
+int * samples;
+std::complex<double> * frequencies; 
 
 const uint16_t RESPONSE_TIMEOUT = 6000;
 const uint16_t OUT_BUFFER_SIZE = 1000; //size of buffer to hold HTTP response
@@ -148,24 +148,28 @@ const uint8_t PIN_2 = 0; //button 2
 int record_timer;
 int record = 0;
 int sample_pointer = 1;
+int flag1 = 0;
+int flag2 = 0;
 void setup() {
   Serial.begin(115200);               // Set up serial port
 //  sbi(ADCSRA, ADPS2);
 //  cbi(ADCSRA, ADPS1);
 //  cbi(ADCSRA, ADPS0);
-  Serial.println("\nPSRAM is correctly initialized");
+  if(psramFound()){
+    Serial.println("PSRAM enabled");
   }else{
-  Serial.println("PSRAM not available");
+    Serial.println("PSRAM not enabled!");
   }
   tft.init();  //init screen
   tft.setRotation(2); //adjust rotation
   tft.setTextSize(1); //default font size
+  tft.setCursor(0,0,1);
   tft.fillScreen(TFT_BLACK); //fill background
   tft.setTextColor(TFT_GREEN, TFT_BLACK); //set color of font to green foreground, black background
   delay(100); //wait a bit (100 ms)
 //  pinMode(PIN_1, INPUT_PULLUP);
 //  pinMode(PIN_2, INPUT_PULLUP);
-  pinMode(25,OUTPUT); digitalWrite(25,0);//in case you're controlling your screen with pin 25
+//  pinMode(25,OUTPUT); digitalWrite(25,0);//in case you're controlling your screen with pin 25
 
   WiFi.begin(NETWORK, PASSWORD); //attempt to connect to wifi
   uint8_t count = 0; //count used for Wifi check times
@@ -199,6 +203,9 @@ void setup() {
   Button record_button = Button(PIN_1);
   record_timer = micros();
   Serial.println(ESP.getFreePsram());
+  samples = (int*)ps_malloc(sizeof(int)*NUM_SAMPLES);
+  frequencies = (std::complex<double>*)ps_malloc(sizeof(std::complex<double>)*8192);
+  Serial.println(ESP.getFreePsram());
   samples[0] = 1551;
   Serial.println("Finished setup");
 }
@@ -218,22 +225,36 @@ void setup() {
 //   }
 
 // }
+
+//void graphWaves(void pvParameters){
+//
+//  int pointer2 = 1;
+//  while(true){
+//    
+//  }
+//}
 void loop2(void * pvParameters){
-  if(sample_pointer%(8192) == 0){
-    if(sample_pointer == 0){
+
+  while(true){
+  if(flag1==1 || flag2==1){
+    if(flag1==1){
       fft(samples,frequencies, 8192);
- 
-    }else{
+      flag1 = 0;
+    }else if(flag2==1){
       fft(samples + 8192, frequencies, 8192);
+      flag2 = 0;
     }
     int max_index = 0;
-      for(int i = 0; i < 8192; i++){
-        if (std::abs(frequencies[i]) > std::abs(frequencies[max_index])){
+      for(int i = 0; i < 4096; i++){
+        if (std::real(frequencies[i]) > std::real(frequencies[max_index])){
           max_index = i;
         }
       }
-//    Serial.println(real(max_f));
-    tft.println(max_index);
+   Serial.print("Frequency(Hz):");
+   Serial.println(max_index-80);
+  }
+  vTaskDelay(10 / portTICK_PERIOD_MS);
+//  Serial.println("loop2");
   }
 }
 
@@ -241,17 +262,25 @@ void loop() {
   readMic();
 }
 
-
+void create_wave(int frequency){
+  (double*)ps_malloc(sizeof(double)*NUM_SAMPLES);
+  
+}
 void readMic(){ //Read value from microphone
   while(micros()-record_timer < 100){};
   int raw_reading = analogRead(A0);
   record_timer = micros(); 
-  int clean_reading = raw_reading-1551;
-//      Serial.print("Voltage:");
+  int clean_reading = raw_reading-1400;
   samples[sample_pointer] = clean_reading;
   sample_pointer++;
   sample_pointer=sample_pointer%NUM_SAMPLES;
-  Serial.println("loop");
+  if(sample_pointer ==0){
+     while(flag1==1){  vTaskDelay(50 / portTICK_PERIOD_MS);};
+    flag2 = 1;
+  }else if(sample_pointer==8192){
+    while(flag2==1){  vTaskDelay(50 / portTICK_PERIOD_MS);};
+    flag1 = 1;
+  }
 }
 
  
