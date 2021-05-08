@@ -4,6 +4,9 @@
 #include <iostream>
 #include <complex>
 #include "fft_psram.h"
+
+double notes[7] = {440.00,493.88, 523.25,587.33,659.25,698.46,783.99};
+char letters[7] = {'A','B','C','D','E','F','G'};
 class Button{
   public:
   uint32_t state_2_start_time;
@@ -128,9 +131,9 @@ TaskHandle_t SendTask;
 
 
 const int DELAY = 1000;
-const int SAMPLE_FREQ = 10000;                          // Hz, telephone sample rate
-const int SAMPLE_DURATION = 1;                        // duration of fixed sampling (seconds)
-const int NUM_SAMPLES = 2*8192;  // number of of samples
+const int SAMPLE_FREQ = 4096;                          // Hz, telephone sample rate
+const int SAMPLE_DURATION = 5;                        // duration of fixed sampling (seconds)
+const int NUM_SAMPLES =SAMPLE_DURATION*SAMPLE_FREQ;  // number of of samples
 int * samples;
 std::complex<double> * frequencies; 
 
@@ -146,10 +149,13 @@ const uint8_t PIN_1 = 5; //button 1
 const uint8_t PIN_2 = 0; //button 2
 
 int record_timer;
-int record = 0;
+int speed_timer;
+int state = 0;
 int sample_pointer = 1;
-int flag1 = 0;
-int flag2 = 0;
+int flags[SAMPLE_DURATION] = {0};
+char melody[SAMPLE_DURATION];
+int pitches[SAMPLE_DURATION];
+Button record_button = Button(5);
 void setup() {
   Serial.begin(115200);               // Set up serial port
 //  sbi(ADCSRA, ADPS2);
@@ -206,7 +212,7 @@ void setup() {
   samples = (int*)ps_malloc(sizeof(int)*NUM_SAMPLES);
   frequencies = (std::complex<double>*)ps_malloc(sizeof(std::complex<double>)*8192);
   Serial.println(ESP.getFreePsram());
-  samples[0] = 1551;
+  samples[0] = 1500;
   Serial.println("Finished setup");
 }
 
@@ -236,47 +242,86 @@ void setup() {
 void loop2(void * pvParameters){
 
   while(true){
-  if(flag1==1 || flag2==1){
-    if(flag1==1){
-      fft(samples,frequencies, 8192);
-      flag1 = 0;
-    }else if(flag2==1){
-      fft(samples + 8192, frequencies, 8192);
-      flag2 = 0;
-    }
-    int max_index = 0;
-      for(int i = 0; i < 4096; i++){
-        if (std::real(frequencies[i]) > std::real(frequencies[max_index])){
+  for(int i = 0; i < SAMPLE_DURATION; i++){
+    if(flags[i]==1){
+      fft(samples + SAMPLE_FREQ*i,frequencies, SAMPLE_FREQ);
+      flags[i] = 0;
+      int max_index = 0;
+      for(int i = 0; i < SAMPLE_FREQ/2; i++){
+//        Serial.print("Frequency:");
+//        Serial.print(i);
+//        Serial.print(",");
+////        Serial.print("Magnitude:");
+//        Serial.println(std::abs(frequencies[i]));
+        if(std::abs(frequencies[i]) > std::abs(frequencies[max_index])){
           max_index = i;
         }
       }
-   Serial.print("Frequency(Hz):");
-   Serial.println(max_index-80);
+//   Serial.print("Frequency(Hz):");
+//   Serial.println(max_index);
+//   Serial.print("Note:");
+//   Serial.println(find_note(max_index/2));
+    melody[i] = find_note(max_index);
+    pitches[i] = max_index;
+    }
+          vTaskDelay(10 / portTICK_PERIOD_MS);
+    }
+      vTaskDelay(10 / portTICK_PERIOD_MS);
   }
-  vTaskDelay(10 / portTICK_PERIOD_MS);
-//  Serial.println("loop2");
   }
-}
 
 void loop() {
-  readMic();
+  record_button.update();
+  switch(state){
+    case 0:
+    if(record_button.state > 0){
+      state = 1;
+      Serial.println("Recording");
+      speed_timer = millis();
+    }
+    break;
+   case 1:
+    if(sample_pointer<NUM_SAMPLES){
+    readMic();
+    }else{
+      flags[SAMPLE_DURATION-1] = 1;
+      Serial.print("Time Elapsed(ms):");
+      Serial.println(millis()-speed_timer);
+      Serial.print("Melody:");
+      for(int i = 0; i < SAMPLE_DURATION; i++){
+        Serial.print(melody[i]);
+        Serial.print("(");
+        Serial.print(pitches[i]);
+        Serial.println(")");
+        Serial.print(" ");
+      }
+      state = 0;
+      sample_pointer = 1;
+      break;
+    }
+  }
 }
 
 void readMic(){ //Read value from microphone
-  while(micros()-record_timer < 100){};
-  int raw_reading = analogRead(A0);
+  while(micros()-record_timer < (int)(1000000/SAMPLE_FREQ)){};
   record_timer = micros(); 
-  int clean_reading = raw_reading-1400;
+  int raw_reading = analogRead(A0);
+  int clean_reading = raw_reading-1362;
   samples[sample_pointer] = clean_reading;
   sample_pointer++;
-  sample_pointer=sample_pointer%NUM_SAMPLES;
-  if(sample_pointer ==0){
-     while(flag1==1){  vTaskDelay(50 / portTICK_PERIOD_MS);};
-    flag2 = 1;
-  }else if(sample_pointer==8192){
-    while(flag2==1){  vTaskDelay(50 / portTICK_PERIOD_MS);};
-    flag1 = 1;
+//  sample_pointer=sample_pointer%NUM_SAMPLES;
+  if(sample_pointer %SAMPLE_FREQ == 0){
+    flags[sample_pointer/SAMPLE_FREQ -1] = 1;
   }
 }
 
- 
+char find_note(int frequency){
+for(int i = 0; i <7;i++){
+  if(abs((int)(notes[i])-frequency) < 20){
+    return letters[i];
+  }
+  vTaskDelay(10 / portTICK_PERIOD_MS);
+}
+//Serial.println(frequency);
+return ' ';
+}

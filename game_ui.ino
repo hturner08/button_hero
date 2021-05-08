@@ -374,7 +374,7 @@ void play_song() {
       tft.print(">");
       tft.print(new_note);
       tft.setTextSize(1);
-      tft.setCursor(40, midy+20);
+      tft.setCursor(40, midy+20);s
       tft.print(sec_note);
       tft.setCursor(40, midy+40);
       tft.print(thi_note);
