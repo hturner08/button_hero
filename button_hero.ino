@@ -677,7 +677,7 @@ void loop2(void * pvParameters){
 //   Serial.println(max_index);
 //   Serial.print("Note:");
 //   Serial.println(find_note(max_index/2));
-    melody[i] = find_note(max_index);
+    song_to_compare.notes[i] = find_note(max_index);
     pitches[i] = max_index;
     }
           vTaskDelay(10 / portTICK_PERIOD_MS);
