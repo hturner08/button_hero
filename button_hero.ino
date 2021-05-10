@@ -2,6 +2,7 @@
 #include <SPI.h>
 #include <WiFi.h> //Connect to WiFi Network
 #include <ArduinoJson.h>  
+#include <SavLayFilter.h>
 #define ARDUINOJSON_USE_DOUBLE 0
 #include "fft_psram.h"
 
@@ -12,8 +13,8 @@ TFT_eSPI tft = TFT_eSPI();
 
 const char USER[] = "umagana"; //CHANGE YOUR USER VARIABLE!!!
 const char GET_URL[] = "GET http://608dev-2.net/sandbox/sc/team27/button_hero_server/data_to_esp32.py HTTP/1.1\r\n";
-const char network[] = "18skulls";
-const char password[] = "pksMIT2021";
+const char network[] = "MIT";
+const char password[] = "";
 uint8_t channel = 1; //network channel on 2.4 GHz
 byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP you're targeting.
 WiFiClient client2; //global WiFiClient Secure object
@@ -75,6 +76,9 @@ const int SAMPLE_DURATION = 5;                        // duration of fixed sampl
 const int NUM_SAMPLES =SAMPLE_DURATION*SAMPLE_FREQ;  // number of of samples
 int * samples;
 std::complex<double> * frequencies; 
+double clean_reading;
+SavLayFilter smallFilter (&clean_reading, 0, 5);  
+
 TaskHandle_t RecordTask;
 TaskHandle_t FFTTask;
 double notes[7] = {440.00,493.88, 523.25,587.33,659.25,698.46,783.99};
@@ -688,11 +692,14 @@ void loop2(void * pvParameters){
 
 
 void readMic(){ //Read value from microphone
+  if(micros()-record_timer < (int)(1000000/SAMPLE_FREQ)){
+    Serial.println("TOO SLOW!");
+  }
   while(micros()-record_timer < (int)(1000000/SAMPLE_FREQ)){};
   record_timer = micros(); 
   int raw_reading = analogRead(A0);
-  int clean_reading = raw_reading-1362;
-  samples[sample_pointer] = clean_reading;
+  clean_reading = raw_reading-1362;
+  samples[sample_pointer] = (int)(smallFilter.Compute());
   sample_pointer++;
 //  sample_pointer=sample_pointer%NUM_SAMPLES;
   if(sample_pointer %SAMPLE_FREQ == 0){
