@@ -13,8 +13,9 @@ TFT_eSPI tft = TFT_eSPI();
 
 const char USER[] = "umagana"; //CHANGE YOUR USER VARIABLE!!!
 const char GET_URL[] = "GET http://608dev-2.net/sandbox/sc/team27/button_hero_server/data_to_esp32.py HTTP/1.1\r\n";
-const char network[] = "MIT";
-const char password[] = "";
+const char POST_URL[] = "POST http://608dev-2.net/sandbox/sc/team27/button_hero_server/testing_seb.py HTTP/1.1\r\n";
+const char network[] = "18skulls";
+const char password[] = "pksMIT2021";
 uint8_t channel = 1; //network channel on 2.4 GHz
 byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP you're targeting.
 WiFiClient client2; //global WiFiClient Secure object
@@ -25,7 +26,9 @@ const int POSTING_PERIOD = 6000; //ms to wait between posting step
 const uint16_t IN_BUFFER_SIZE = 3000; //size of buffer to hold HTTP request
 const uint16_t OUT_BUFFER_SIZE = 3000; //size of buffer to hold HTTP response
 char request[IN_BUFFER_SIZE]; //char array buffer to hold HTTP request
+char request_score[IN_BUFFER_SIZE]; //char array buffer to hold HTTP request
 char response[OUT_BUFFER_SIZE]; //char array buffer to hold HTTP response
+char response_score[OUT_BUFFER_SIZE]; //char array buffer to hold HTTP response
 char old_response[OUT_BUFFER_SIZE]; //char array buffer to hold HTTP response
 
 const int SCREEN_HEIGHT = 160;
@@ -92,115 +95,7 @@ int flags[SAMPLE_DURATION] = {0};
 char melody[SAMPLE_DURATION];
 int pitches[SAMPLE_DURATION];
 
-// ALL NOTES in Hz (names are written with the letter O because some letter-number combinations are already C preset variable names)
 float CO0 = 16.35;
-float CS0 = CO0*pow(2,1.0/12.0);
-float DO0 = CO0*pow(2,2.0/12.0);
-float DS0 = CO0*pow(2,3.0/12.0);
-float EO0 = CO0*pow(2,4.0/12.0);
-float FO0 = CO0*pow(2,5.0/12.0);
-float FS0 = CO0*pow(2,6.0/12.0);
-float GO0 = CO0*pow(2,7.0/12.0);
-float GS0 = CO0*pow(2,8.0/12.0);
-float AO0 = CO0*pow(2,9.0/12.0);
-float AS0 = CO0*pow(2,10.0/12.0);
-float BO0 = CO0*pow(2,11.0/12.0);
-float CO1 = CO0*pow(2,12.0/12.0);
-float CS1 = CO0*pow(2,13.0/12.0);
-float DO1 = CO0*pow(2,14.0/12.0);
-float DS1 = CO0*pow(2,15.0/12.0);
-float EO1 = CO0*pow(2,16.0/12.0);
-float FO1 = CO0*pow(2,17.0/12.0);
-float FS1 = CO0*pow(2,18.0/12.0);
-float GO1 = CO0*pow(2,19.0/12.0);
-float GS1 = CO0*pow(2,20.0/12.0);
-float AO1 = CO0*pow(2,21.0/12.0);
-float AS1 = CO0*pow(2,22.0/12.0);
-float BO1 = CO0*pow(2,23.0/12.0);
-float CO2 = CO0*pow(2,24.0/12.0);
-float CS2 = CO0*pow(2,25.0/12.0);
-float DO2 = CO0*pow(2,26.0/12.0);
-float DS2 = CO0*pow(2,27.0/12.0);
-float EO2 = CO0*pow(2,28.0/12.0);
-float FO2 = CO0*pow(2,29.0/12.0);
-float FS2 = CO0*pow(2,30.0/12.0);
-float GO2 = CO0*pow(2,31.0/12.0);
-float GS2 = CO0*pow(2,32.0/12.0);
-float AO2 = CO0*pow(2,33.0/12.0);
-float AS2 = CO0*pow(2,34.0/12.0);
-float BO2 = CO0*pow(2,35.0/12.0);
-float CO3 = CO0*pow(2,36.0/12.0);
-float CS3 = CO0*pow(2,37.0/12.0);
-float DO3 = CO0*pow(2,38.0/12.0);
-float DS3 = CO0*pow(2,39.0/12.0);
-float EO3 = CO0*pow(2,40.0/12.0);
-float FO3 = CO0*pow(2,41.0/12.0);
-float FS3 = CO0*pow(2,42.0/12.0);
-float GO3 = CO0*pow(2,43.0/12.0);
-float GS3 = CO0*pow(2,44.0/12.0);
-float AO3 = CO0*pow(2,45.0/12.0);
-float AS3 = CO0*pow(2,46.0/12.0);
-float BO3 = CO0*pow(2,47.0/12.0);
-float CO4 = CO0*pow(2,48.0/12.0);
-float CS4 = CO0*pow(2,49.0/12.0);
-float DO4 = CO0*pow(2,50.0/12.0);
-float DS4 = CO0*pow(2,51.0/12.0);
-float EO4 = CO0*pow(2,52.0/12.0);
-float FO4 = CO0*pow(2,53.0/12.0);
-float FS4 = CO0*pow(2,54.0/12.0);
-float GO4 = CO0*pow(2,55.0/12.0);
-float GS4 = CO0*pow(2,56.0/12.0);
-float AO4 = CO0*pow(2,57.0/12.0);
-float AS4 = CO0*pow(2,58.0/12.0);
-float BO4 = CO0*pow(2,59.0/12.0);
-float CO5 = CO0*pow(2,60.0/12.0);
-float CS5 = CO0*pow(2,61.0/12.0);
-float DO5 = CO0*pow(2,62.0/12.0);
-float DS5 = CO0*pow(2,63.0/12.0);
-float EO5 = CO0*pow(2,64.0/12.0);
-float FO5 = CO0*pow(2,65.0/12.0);
-float FS5 = CO0*pow(2,66.0/12.0);
-float GO5 = CO0*pow(2,67.0/12.0);
-float GS5 = CO0*pow(2,68.0/12.0);
-float AO5 = CO0*pow(2,69.0/12.0);
-float AS5 = CO0*pow(2,70.0/12.0);
-float BO5 = CO0*pow(2,71.0/12.0);
-float CO6 = CO0*pow(2,72.0/12.0);
-float CS6 = CO0*pow(2,73.0/12.0);
-float DO6 = CO0*pow(2,74.0/12.0);
-float DS6 = CO0*pow(2,75.0/12.0);
-float EO6 = CO0*pow(2,76.0/12.0);
-float FO6 = CO0*pow(2,77.0/12.0);
-float FS6 = CO0*pow(2,78.0/12.0);
-float GO6 = CO0*pow(2,79.0/12.0);
-float GS6 = CO0*pow(2,80.0/12.0);
-float AO6 = CO0*pow(2,81.0/12.0);
-float AS6 = CO0*pow(2,82.0/12.0);
-float BO6 = CO0*pow(2,83.0/12.0);
-float CO7 = CO0*pow(2,84.0/12.0);
-float CS7 = CO0*pow(2,85.0/12.0);
-float DO7 = CO0*pow(2,86.0/12.0);
-float DS7 = CO0*pow(2,87.0/12.0);
-float EO7 = CO0*pow(2,88.0/12.0);
-float FO7 = CO0*pow(2,89.0/12.0);
-float FS7 = CO0*pow(2,90.0/12.0);
-float GO7 = CO0*pow(2,91.0/12.0);
-float GS7 = CO0*pow(2,92.0/12.0);
-float AO7 = CO0*pow(2,93.0/12.0);
-float AS7 = CO0*pow(2,94.0/12.0);
-float BO7 = CO0*pow(2,95.0/12.0);
-float CO8 = CO0*pow(2,96.0/12.0);
-float CS8 = CO0*pow(2,97.0/12.0);
-float DO8 = CO0*pow(2,98.0/12.0);
-float DS8 = CO0*pow(2,99.0/12.0);
-float EO8 = CO0*pow(2,100.0/12.0);
-float FO8 = CO0*pow(2,101.0/12.0);
-float FS8 = CO0*pow(2,102.0/12.0);
-float GO8 = CO0*pow(2,103.0/12.0);
-float GS8 = CO0*pow(2,104.0/12.0);
-float AO8 = CO0*pow(2,105.0/12.0);
-float AS8 = CO0*pow(2,106.0/12.0);
-float BO8 = CO0*pow(2,107.0/12.0);
 
 // used for game when displaying next notes to play
 class Song {
@@ -210,17 +105,19 @@ class Song {
     float notes[500]; //the notes (array of doubles containing frequencies in Hz. I used https://pages.mtu.edu/~suits/notefreqs.html
     int length; //number of notes (essentially length of array).
     float note_period; // once we get bpm and fraction from actual song (quarter notes, eight notes, etc.), change them using conversion: note_period = 60.0*1000/bpm/FACTOR
+    char user[50];
   // FACTOR is (# notes needed per measure/ fraction of notes in beat). For example, # notes needed per measure is often 16 or 32, and typically bpm counts the song's quarter notes, so FACTOR = 16/4 or 32/4
 };
 
 //Representing the actual song
-Song lights = {"All of the Lights", "Kanye West", {CO4, 0.0, CO4, CO4, CO4, CO4, CO4, 0.0, CO4, 0.0, EO4, EO4, EO4, EO4, AO4, 0.0, GO4, 0.0, GO4, GO4, GO4, GO4, 369.99, 0.0, EO4, 0.0, EO4, EO4, EO4, EO4, EO4, 0.0}, 32, 208.3};
-Song danza = {"Danza Kuduro", "Don Omar", {CO4, EO4, 0.0, AO4, 0.0, FO4, GO4, 0.0, CO5, 0.0, CO5, 0.0, BO4, 0.0, CO5, 0.0, CO4, DO4, 0.0, FO4, 0.0, EO4, FO4, 0.0, AO4, 0.0, AO4, 0.0, GO4, 0.0, GO4, 0.0, CO4, EO4, 0.0, GO4, 0.0, EO4, GO4, 0.0, EO5, 0.0, EO5, 0.0, DO5, 0.0, DO5, 0.0, CO4, EO4, 0.0, GO4, 0.0, EO4, GO4, 0.0, BO4, 0.0, BO4, 0.0, BO4, 0.0, CO5, 0.0}, 64, 115.38};
+//Song lights = {"All of the Lights", "Kanye West", {CO4, 0.0, CO4, CO4, CO4, CO4, CO4, 0.0, CO4, 0.0, EO4, EO4, EO4, EO4, AO4, 0.0, GO4, 0.0, GO4, GO4, GO4, GO4, 369.99, 0.0, EO4, 0.0, EO4, EO4, EO4, EO4, EO4, 0.0}, 32, 208.3, "Uriel"};
+//Song danza = {"Danza Kuduro", "Don Omar", {CO4, EO4, 0.0, AO4, 0.0, FO4, GO4, 0.0, CO5, 0.0, CO5, 0.0, BO4, 0.0, CO5, 0.0, CO4, DO4, 0.0, FO4, 0.0, EO4, FO4, 0.0, AO4, 0.0, AO4, 0.0, GO4, 0.0, GO4, 0.0, CO4, EO4, 0.0, GO4, 0.0, EO4, GO4, 0.0, EO5, 0.0, EO5, 0.0, DO5, 0.0, DO5, 0.0, CO4, EO4, 0.0, GO4, 0.0, EO4, GO4, 0.0, BO4, 0.0, BO4, 0.0, BO4, 0.0, CO5, 0.0}, 64, 115.38};
 Song song_to_play;  //initialize song for GET request
 
 //Representing user's instrument with some mistakes while playing
 //This will be built from the microphone 
-Song song_to_compare = {"user_song", "user", { CO3, EO3, 0.0, AO3, 0.0, FO3, GO3, 0.0, CO4, 0.0, CO4, 0.0, BO4, 0.0, BO4, 0.0, CO3, DO3, 0.0, FO3, 0.0, EO3, FO3, 0.0, AO3, 0.0, AO3, 0.0, GO3, 0.0, GO3, 0.0, CO3, EO3, 0.0, GO3, 0.0, EO3, GO3, 0.0, EO4, 0.0, EO4, 0.0, DO4, 0.0, DO4, 0.0, CO3, EO3, 0.0, GO3, 0.0, EO3, GO3, 0.0, BO3, 0.0, BO3, 0.0, BO3, 0.0, CO4, 0.0}, 64, 115.38};
+//Song song_to_compare = {"user_song", "user", { CO3, EO3, 0.0, AO3, 0.0, FO3, GO3, 0.0, CO4, 0.0, CO4, 0.0, BO4, 0.0, BO4, 0.0, CO3, DO3, 0.0, FO3, 0.0, EO3, FO3, 0.0, AO3, 0.0, AO3, 0.0, GO3, 0.0, GO3, 0.0, CO3, EO3, 0.0, GO3, 0.0, EO3, GO3, 0.0, EO4, 0.0, EO4, 0.0, DO4, 0.0, DO4, 0.0, CO3, EO3, 0.0, GO3, 0.0, EO3, GO3, 0.0, BO3, 0.0, BO3, 0.0, BO3, 0.0, CO4, 0.0}, 64, 115.38, "Uriel"};
+Song song_to_compare = {"user_song", "user", { 130.8, 164.8, 0.0}, 32, 208.3, "Uriel"};
 
 class Button {
   public:
@@ -349,6 +246,7 @@ void setup() {
   screen_set(0, 1, 80, text);
   strcpy(text,"song...");
   screen_set(0, 1, 90, text);
+  decorate_home();
   pinMode(BUTTON1, INPUT_PULLUP);
   pinMode(BUTTON2, INPUT_PULLUP);
   state = 0;
@@ -387,12 +285,13 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
       if(state != old_state) {
         strcpy(text,"BUTTON");
         screen_set(1, 2, 40, text);
+        decorate_home();
         strcpy(text,"HERO");
         screen_set(0, 2, 60, text);
         strcpy(text,"Waiting for");
-        screen_set(0, 1, 90, text);
+        screen_set(0, 1, 80, text);
         strcpy(text,"song...");
-        screen_set(0, 1, 100, text);
+        screen_set(0, 1, 90, text);
       }
       if(millis() - get_timer > 3000) { // every 3 seconds, try to get a new song
         get_timer = millis();
@@ -411,6 +310,8 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
           }
           strcpy(song_to_play.title,doc["title"]);
           strcpy(song_to_play.artist,doc["artist"]);
+          strcpy(song_to_play.user,doc["user"]);
+          Serial.println(song_to_play.user);
           song_to_play.length = doc["note_count"];
           for(int i=0; i< song_to_play.length; i++) {
             song_to_play.notes[i] = doc["frq"][i];
@@ -419,25 +320,17 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
           strcpy(old_response, response);
           state = SELECT;
         }
-        /*
-        {"frq": [261.6, 261.6, 293.6, 293.6, 0, 0, 440.0, 440.0, 0, 0, 349.2, 349.2, 392.0, 392.0, 0, 0, 523.2, 523.2, 0, 0, 523.2, 523.2, 0, 0, 493.92, 493.92, 0, 0, 523.2, 523.2, 
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 261.6, 261.6, 293.6, 293.6, 0, 0, 349.2, 349.2, 0, 0, 329.6, 329.6, 349.2, 
-        349.2, 0, 0, 440.0, 440.0, 0, 0, 440.0, 440.0, 0, 0, 392.0, 392.0, 0, 0, 392.0, 392.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-        0, 0, 0, 0, 0, 261.6, 261.6, 329.6, 329.6, 0, 0, 392.0, 392.0, 0, 0, 329.6, 329.6, 392.0, 392.0, 0, 0, 659.2, 659.2, 0, 0, 659.2, 659.2, 0, 0, 587.2, 587.2, 0, 0, 587.2, 587.2, 
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 261.6, 261.6, 329.6, 329.6, 0, 0, 392.0, 392.0, 0, 0, 329.6, 329.6, 392.0, 
-        392.0, 0, 0, 493.92, 493.92, 0, 0, 493.92, 493.92, 0, 0, 493.92, 493.92, 0, 0, 523.2, 523.2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-        0, 0, 0, 0, 0, 0], "note_count": 256, "factor": 4, "note_duration": 120.96774193548387, "title": "test_score_m2", "artist": "N/A"}
-        */
       }
       break;
     case SELECT:
       if(state != old_state) { // if "song" button just pressed, reprint
         strcpy(text, song_to_play.title);
-        screen_set(1, 1, 40, text);
+        screen_set(1, 2, 40, text);
         strcpy(text, song_to_play.artist);
-        screen_set(0, 1, 50, text);
-        strcpy(text, "Press X to start...");
-        screen_set(0, 1, 70, text);
+        screen_set(0, 1, 60, text);
+        strcpy(text, "Press button to start...");
+        screen_set(0, 1, 75, text);
+        decorate_home();
       }
       if(play == 1) {
         state = PLAY;
@@ -461,12 +354,25 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
           0,  /* Priority of the task */
           &FFTTask,  /* Task handle. */
           0); /* Core where the task should run */
-      delay(600000);
+//      delay(60000);
       state = SCORE;
       break;
     case SCORE:
       if(state != old_state) {
         score = calculate_score();
+        // POST score to python
+        char body[100]; //for body
+        sprintf(body,"user=%s&score=%d",song_to_play.user,score);
+        int body_len = strlen(body);  //calculate body length (for header reporting)
+        sprintf(request_score, POST_URL);
+        strcat(request_score, "Host: 608dev-2.net\r\n"); //add more to the end
+        strcat(request_score,"Content-Type: application/x-www-form-urlencoded\r\n");
+        sprintf(request_score+strlen(request_score),"Content-Length: %d\r\n", body_len);
+        strcat(request_score, "\r\n"); 
+        strcat(request_score,body); 
+        strcat(request_score,"\r\n"); 
+        do_http_request("608dev-2.net", request_score, response_score, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+        // TFT score to screen
         strcpy(text,"Score:");
         screen_set(1, 1, midy-20,text);
         screen_set(0, 2, midy,"");
@@ -603,7 +509,12 @@ float calculate_score() { // function will be much longer once the server side c
 }
 
 void decorate_home() {
-  
+  tft.drawLine(50,100,110,100,TFT_GREEN);
+  tft.drawLine(50,100,75,108,TFT_GREEN);
+  tft.drawLine(75,108,110,100,TFT_GREEN);
+  tft.drawLine(50,24,110,24,TFT_GREEN);
+  tft.drawLine(50,24,85,16,TFT_GREEN);
+  tft.drawLine(85,16,110,24,TFT_GREEN);
 }
 
 void note_name(float freq, char* note) {
