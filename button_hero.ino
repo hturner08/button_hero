@@ -13,7 +13,7 @@ TFT_eSPI tft = TFT_eSPI();
 
 const char USER[] = "umagana"; //CHANGE YOUR USER VARIABLE!!!
 const char GET_URL[] = "GET http://608dev-2.net/sandbox/sc/team27/button_hero_server/data_to_esp32.py HTTP/1.1\r\n";
-const char POST_URL[] = "POST http://608dev-2.net/sandbox/sc/team27/button_hero_server/game.py HTTP/1.1\r\n";
+const char POST_URL[] = "POST http://608dev-2.net/sandbox/sc/team27/button_hero_server/game_status.py HTTP/1.1\r\n";
 const char network[] = "18skulls";
 const char password[] = "pksMIT2021";
 uint8_t channel = 1; //network channel on 2.4 GHz
@@ -293,12 +293,15 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
         strcpy(text,"song...");
         screen_set(0, 1, 90, text);
       }
-      if(millis() - get_timer > 3000) { // every 3 seconds, try to get a new song
+      if(millis() - get_timer > 500) { // every 3 seconds, try to get a new song
+        delay(3500);
         get_timer = millis();
+        Serial.print(get_timer);
         sprintf(request, GET_URL);
         strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
         strcat(request, "\r\n"); //add blank line!
         do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+        Serial.println(response);
         if(old_response != response) {
           char* first_ind = strchr(response, '{');
           DynamicJsonDocument doc(8000);
@@ -311,14 +314,13 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
           strcpy(song_to_play.title,doc["title"]);
           strcpy(song_to_play.artist,doc["artist"]);
           strcpy(song_to_play.user,doc["user"]);
-          Serial.println(song_to_play.user);
           song_to_play.length = doc["note_count"];
           for(int i=0; i< song_to_play.length; i++) {
             song_to_play.notes[i] = doc["frq"][i];
           }
           song_to_play.note_period = doc["note_duration"];
           strcpy(old_response, response);
-          state = SELECT;
+          if(song_to_play.length != 0) state = PLAY;
         }
       }
       break;
@@ -360,9 +362,11 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
     case SCORE:
       if(state != old_state) {
         score = calculate_score();
+        Serial.print("Score: ");
+        Serial.println(score);
         // POST score to python
         char body[100]; //for body
-        sprintf(body,"user=%s&score=%d",song_to_play.user,score);
+        sprintf(body,"user=%s&result=%f",song_to_play.user,score);
         int body_len = strlen(body);  //calculate body length (for header reporting)
         sprintf(request_score, POST_URL);
         strcat(request_score, "Host: 608dev-2.net\r\n"); //add more to the end
@@ -386,6 +390,7 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
       }
       if(play == 1) {
         state = IDLE;
+        get_timer = millis();
       }
   }
   return state;
@@ -444,6 +449,7 @@ void play_song() {
       starting = millis();
       i++;
       new_note = song_to_play.notes[i];
+      Serial.println(new_note);
 //      note_name(new_note, note); // COMMENT BACK IN IF YOU WANT TO SEE NOTES ON SCREEN
 //      strcpy(text, note);
 //      screen_set(1,2,midy,text);
