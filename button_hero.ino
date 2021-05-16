@@ -13,7 +13,7 @@ TFT_eSPI tft = TFT_eSPI();
 
 const char USER[] = "umagana"; //CHANGE YOUR USER VARIABLE!!!
 const char GET_URL[] = "GET http://608dev-2.net/sandbox/sc/team27/button_hero_server/data_to_esp32.py HTTP/1.1\r\n";
-const char POST_URL[] = "POST http://608dev-2.net/sandbox/sc/team27/button_hero_server/testing_seb.py HTTP/1.1\r\n";
+const char POST_URL[] = "POST http://608dev-2.net/sandbox/sc/team27/button_hero_server/game.py HTTP/1.1\r\n";
 const char network[] = "18skulls";
 const char password[] = "pksMIT2021";
 uint8_t channel = 1; //network channel on 2.4 GHz
@@ -425,62 +425,91 @@ void intro() {
 }
 
 void play_song() {
-  int cols = 6; // 6 notes per column
-  int rows = 6; // 6 rows of notes
-  int top = 2;
-  int left = 2;
-  int down = 125;
-  int right = 150;
   int i = 0;
-  int j = 0; // index for all notes per screen
-  int k = 0; // index for note being played one at a time
-  int counter = 0; // counts what 'screen' one is on
-      xTaskCreatePinnedToCore(
-          record_loop, /* Function to implement the task */
-          "Recording", /* Name of the task */
-          10000,  /* Stack size in words */
-          NULL,  /* Task input parameter */
-          0,  /* Priority of the task */
-          &RecordTask,  /* Task handle. */
-          0); /* Core where the task should run */
-  tft.setTextSize(1);
   unsigned long starting = millis();
-  while(i<song_to_play.length) { 
-    j = i%(cols*rows); 
-    new_note = song_to_play.notes[i];
-    note_name(new_note,note); // new note is freq, note is pointer
-    tft.setCursor(left+right/cols*(j%cols),top+down/rows*(j/cols));
-    tft.print(note);
-    i++;
-    if(j == 0) starting = millis();
-    if(j == cols*rows-1 || (j == song_to_play.length%(cols*rows)-1 && counter == song_to_play.length/(cols*rows))) { // on the last note of the screen, or on , play song
-      k = 0;
-      while(k < cols*rows) {
-        if(millis() - starting > song_to_play.note_period) {
-          starting = millis();
-          new_note = song_to_play.notes[k+counter*cols*rows];
-          ledcWriteTone(AUDIO_PWM, new_note);
-          if(k!=0){ // turn old note back white
-            starting = millis();
-            old_note = song_to_play.notes[k-1+counter*cols*rows];
-            note_name(old_note, note);
-            tft.setTextColor(TEXT,BACK);
-            tft.setCursor(left+right/cols*((k-1)%cols),top+down/rows*((k-1)/cols));
-            tft.print(note);
-          }
-          note_name(new_note,note); // turn new note green while displaying
-          tft.setCursor(left+right/cols*(k%cols),top+down/rows*(k/cols));
-          tft.setTextColor(NOTE,BACK);
-          tft.print(note);
-          k++;
-        }
-        if(k == song_to_play.length%(cols*rows) && counter == song_to_play.length/(cols*rows)) break;
-      }
-      tft.setTextColor(TEXT,BACK);
-      counter++;
+  strcpy(text, "Look at screen!");
+  screen_set(1,1,midy,text);
+  // @HERBIE, COMMENT IN IF THIS IS THE CODE YOU NEED TO RECORD
+//  xTaskCreatePinnedToCore(
+//      record_loop, /* Function to implement the task */
+//      "Recording", /* Name of the task */
+//      10000,  /* Stack size in words */
+//      NULL,  /* Task input parameter */
+//      0,  /* Priority of the task */
+//      &RecordTask,  /* Task handle. */
+//      0); /* Core where the task should run */
+  new_note = song_to_play.notes[0];
+  while(i<song_to_play.length) {
+    if(millis() - starting > song_to_play.note_period) {
+      starting = millis();
+      i++;
+      new_note = song_to_play.notes[i];
+//      note_name(new_note, note); // COMMENT BACK IN IF YOU WANT TO SEE NOTES ON SCREEN
+//      strcpy(text, note);
+//      screen_set(1,2,midy,text);
+//      ledcWriteTone(AUDIO_PWM, new_note); // COMMENT BACK IN IF YOU WANT TO TEST NOTES PLAYED IN song_to_play.notes
     }
-    if(j == 0) tft.fillScreen(BACK);
   }
+  // PREVIOUS LCD DISPLAY CODE, LEAVING FOR REFERENCE
+//  int cols = 6; // 6 notes per column
+//  int rows = 6; // 6 rows of notes
+//  int top = 2;
+//  int left = 2;
+//  int down = 125;
+//  int right = 150;
+//  int i = 0;
+//  int j = 0; // index for all notes per screen
+//  int k = 0; // index for note being played one at a time
+//  int counter = 0; // counts what 'screen' one is on
+//  xTaskCreatePinnedToCore(
+//      record_loop, /* Function to implement the task */
+//      "Recording", /* Name of the task */
+//      10000,  /* Stack size in words */
+//      NULL,  /* Task input parameter */
+//      0,  /* Priority of the task */
+//      &RecordTask,  /* Task handle. */
+//      0); /* Core where the task should run */
+//      
+//  tft.setTextSize(1);
+//  unsigned long starting = millis();
+//
+//  while(i<song_to_play.length) { 
+//    j = i%(cols*rows); 
+//    new_note = song_to_play.notes[i];
+//    note_name(new_note,note); // new note is freq, note is pointer
+//    tft.setCursor(left+right/cols*(j%cols),top+down/rows*(j/cols));
+//    tft.print(note);
+//    i++;
+//    if(j == 0) starting = millis();
+//    if(j == cols*rows-1 || (j == song_to_play.length%(cols*rows)-1 && counter == song_to_play.length/(cols*rows))) { // on the last note of the screen, or on , play song
+//      k = 0;
+//      while(k < cols*rows) {
+//        if(millis() - starting > song_to_play.note_period) {
+//          starting = millis();
+//          new_note = song_to_play.notes[k+counter*cols*rows];
+//          ledcWriteTone(AUDIO_PWM, new_note);
+//          if(k!=0){ // turn old note back white
+//            starting = millis();
+//            old_note = song_to_play.notes[k-1+counter*cols*rows];
+//            note_name(old_note, note);
+//            tft.setTextColor(TEXT,BACK);
+//            tft.setCursor(left+right/cols*((k-1)%cols),top+down/rows*((k-1)/cols));
+//            tft.print(note);
+//          }
+//          note_name(new_note,note); // turn new note green while displaying
+//          tft.setCursor(left+right/cols*(k%cols),top+down/rows*(k/cols));
+//          tft.setTextColor(NOTE,BACK);
+//          tft.print(note);
+//          k++;
+//        }
+//        if(k == song_to_play.length%(cols*rows) && counter == song_to_play.length/(cols*rows)) break;
+//      }
+//      tft.setTextColor(TEXT,BACK);
+//      counter++;
+//    }
+//    if(j == 0) tft.fillScreen(BACK);
+//  }
+  
   strcpy(text,"Nice job! Calculating");
   screen_set(1,1,midy,text);
   delay(1000);
