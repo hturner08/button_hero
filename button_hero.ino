@@ -18,8 +18,8 @@ TFT_eSPI tft = TFT_eSPI();
 const char USER[] = "umagana"; //CHANGE YOUR USER VARIABLE!!!
 const char GET_URL[] = "GET http://608dev-2.net/sandbox/sc/team27/button_hero_server/data_to_esp32.py HTTP/1.1\r\n";
 const char POST_URL[] = "POST http://608dev-2.net/sandbox/sc/team27/button_hero_server/game_status.py HTTP/1.1\r\n";
-const char network[] = "MIT";
-const char password[] = "";
+const char network[] = "18skulls";
+const char password[] = "pksMIT2021";
 uint8_t channel = 1; //network channel on 2.4 GHz
 byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP you're targeting.
 WiFiClient client2; //global WiFiClient Secure object
@@ -60,9 +60,13 @@ uint8_t state;
 uint8_t old_state;
 float old_note = 0;
 float new_note = 0;
-float sec_note;
-float thi_note;
+
 float E = 0.02; // buffer to allow in notes (1-E to 1+E)
+
+float EASY = 4;
+float MEDIUM = 3;
+float HARD = 2;
+float difficulty = HARD;
 
 uint8_t i = 0;
 uint32_t countdown;
@@ -361,14 +365,12 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
         strcpy(text,"song...");
         screen_set(0, 1, 90, text);
       }
-      if(millis() - get_timer > 500) { // every 3 seconds, try to get a new song
+      if(millis() - get_timer > 100) { // every .1 seconds, try to get a new song
         get_timer = millis();
-        Serial.print(get_timer);
         sprintf(request, GET_URL);
         strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
         strcat(request, "\r\n"); //add blank line!
         do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
-        Serial.println(response);
         if(old_response != response) {
           char* first_ind = strchr(response, '{');
           DynamicJsonDocument doc(8000);
@@ -388,7 +390,7 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
           song_to_play.note_period = doc["note_duration"];
           strcpy(old_response, response);
           if(song_to_play.length != 0){
-            delay(3500);
+            delay(3900);
             state = PLAY;
           }
         }
@@ -418,8 +420,6 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
       state = TO_SCORE;
       break;
     case TO_SCORE: // show score on leaderboard
-         
-//      delay(60000);
       state = SCORE;
       break;
     case SCORE:
@@ -495,8 +495,12 @@ void intro() {
 void play_song() {
   int i = 0;
   unsigned long starting = millis();
+  strcpy(text, "Play");
+  screen_set(1,1,midy-15,text);
+  strcpy(text, song_to_play.title);
+  screen_set(0,1,midy,text);
   strcpy(text, "Look at screen!");
-  screen_set(1,1,midy,text);
+  screen_set(0,1,midy+15,text);
   adcTimer = timerBegin(0, 80, true); // 80 MHz / 80 = 1 MHz hardware clock for easy figuring
   timerAttachInterrupt(adcTimer, &onTimer, true); // Attaches the handler function to the timer 
   timerAlarmWrite(adcTimer, 40, true); // Interrupts when counter == 45, i.e. 22.222 times a second
@@ -528,9 +532,11 @@ float calculate_score() { // function will be much longer once the server side c
   float playing = 0.0;
   float comparing = 0.0;
   for(int i = 0; i < song_to_compare.length; i++) { // adding the log of the error to account for exponential increase of notes over octaves
-    Serial.println(song_to_compare.notes[i]);
+//    Serial.println(song_to_compare.notes[i]);
     if(song_to_play.notes[i] > CO0/2) playing = log10(song_to_play.notes[i]); // if note is near 0, don't take log, keep as 0.0
     if(song_to_compare.notes[i] > CO0/2) comparing = log10(song_to_compare.notes[i]);
+//    if(abs(playing-comparing) > difficulty) error_sum += playing;
+//    else error_sum += abs(playing-comparing);
     error_sum += abs(playing-comparing);
     denom_sum += playing;
   }
