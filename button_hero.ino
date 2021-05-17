@@ -257,7 +257,7 @@ void fft_loop(void * pvParameters){
       }
    fft_pointer = ++fft_pointer%LOOPS;
    old_peak = peak;
-   note_name(old_peak,old_note);
+   strncpy(old_note,note,3);
    Serial.println(micros()-speed_timer);
   }else{
    portEXIT_CRITICAL_ISR(&timerMux);
