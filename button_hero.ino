@@ -294,7 +294,6 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
         screen_set(0, 1, 90, text);
       }
       if(millis() - get_timer > 500) { // every 3 seconds, try to get a new song
-        delay(3500);
         get_timer = millis();
         Serial.print(get_timer);
         sprintf(request, GET_URL);
@@ -320,7 +319,10 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
           }
           song_to_play.note_period = doc["note_duration"];
           strcpy(old_response, response);
-          if(song_to_play.length != 0) state = PLAY;
+          if(song_to_play.length != 0) {
+            delay(3500);
+            state = PLAY;
+          }s
         }
       }
       break;
