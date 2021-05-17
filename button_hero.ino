@@ -2,9 +2,13 @@
 #include <SPI.h>
 #include <WiFi.h> //Connect to WiFi Network
 #include <ArduinoJson.h>  
-#include <SavLayFilter.h>
 #define ARDUINOJSON_USE_DOUBLE 0
-#include "fft_psram.h"
+#include <soc/sens_reg.h>
+#include <soc/sens_struct.h>
+#include <driver/adc.h>
+
+portMUX_TYPE DRAM_ATTR timerMux = portMUX_INITIALIZER_UNLOCKED; 
+hw_timer_t * adcTimer = NULL; // our timer
 
 TFT_eSPI tft = TFT_eSPI();
 #define BACK TFT_BLACK
@@ -14,8 +18,8 @@ TFT_eSPI tft = TFT_eSPI();
 const char USER[] = "umagana"; //CHANGE YOUR USER VARIABLE!!!
 const char GET_URL[] = "GET http://608dev-2.net/sandbox/sc/team27/button_hero_server/data_to_esp32.py HTTP/1.1\r\n";
 const char POST_URL[] = "POST http://608dev-2.net/sandbox/sc/team27/button_hero_server/game_status.py HTTP/1.1\r\n";
-const char network[] = "18skulls";
-const char password[] = "pksMIT2021";
+const char network[] = "MIT";
+const char password[] = "";
 uint8_t channel = 1; //network channel on 2.4 GHz
 byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP you're targeting.
 WiFiClient client2; //global WiFiClient Secure object
@@ -74,26 +78,23 @@ float score;
 
 //FFT Variables
 const int DELAY = 1000;
-const int SAMPLE_FREQ = 4096;                          // Hz, telephone sample rate
-const int SAMPLE_DURATION = 120;                        // duration of fixed sampling (seconds)
-const int NUM_SAMPLES =SAMPLE_DURATION*SAMPLE_FREQ;  // number of of samples
-int * samples;
-std::complex<double> * frequencies; 
-////double clean_reading;
-//SavLayFilter smallFilter (&clean_reading, 0, 5);  
+const int SAMPLE_FREQ = (int)(1000000/40);//25KHz
+const int LOOPS = 10;
+const int SAMPLES = 1024;
+int * input;
+int fft_pointer = 0;
+int sample_pointer = 0;
+int song_pointer = 0;
+bool fft_condition = false;
 
 TaskHandle_t RecordTask;
-TaskHandle_t FFTTask;
+TaskHandle_t FFT_Task;
 double notes[7] = {440.00,493.88, 523.25,587.33,659.25,698.46,783.99};
 char letters[7] = {'A','B','C','D','E','F','G'};
 
 int record_timer;
 int speed_timer;
 //int state = 0;
-int sample_pointer = 1;
-int flags[SAMPLE_DURATION] = {0};
-char melody[SAMPLE_DURATION];
-int pitches[SAMPLE_DURATION];
 
 float CO0 = 16.35;
 
@@ -117,7 +118,7 @@ Song song_to_play;  //initialize song for GET request
 //Representing user's instrument with some mistakes while playing
 //This will be built from the microphone 
 //Song song_to_compare = {"user_song", "user", { CO3, EO3, 0.0, AO3, 0.0, FO3, GO3, 0.0, CO4, 0.0, CO4, 0.0, BO4, 0.0, BO4, 0.0, CO3, DO3, 0.0, FO3, 0.0, EO3, FO3, 0.0, AO3, 0.0, AO3, 0.0, GO3, 0.0, GO3, 0.0, CO3, EO3, 0.0, GO3, 0.0, EO3, GO3, 0.0, EO4, 0.0, EO4, 0.0, DO4, 0.0, DO4, 0.0, CO3, EO3, 0.0, GO3, 0.0, EO3, GO3, 0.0, BO3, 0.0, BO3, 0.0, BO3, 0.0, CO4, 0.0}, 64, 115.38, "Uriel"};
-Song song_to_compare = {"user_song", "user", { 130.8, 164.8, 0.0}, 32, 208.3, "Uriel"};
+Song song_to_compare = {"user_song", "user", {0.0}, 32, 208.3, "Uriel"};
 
 class Button {
   public:
@@ -194,6 +195,76 @@ class Button {
 Button play(BUTTON1); //button object!
 Button song(BUTTON2); //button object!
 
+
+int IRAM_ATTR local_adc1_read(int channel) {
+    uint16_t adc_value;
+    //set controller
+    SENS.sar_meas_start1.meas1_start_force = true;  //RTC controller controls the ADC,not ulp coprocessor
+    SENS.sar_meas_start1.sar1_en_pad = (1 << channel); // only one channel is selected
+    while (SENS.sar_slave_addr1.meas_status != 0);
+    SENS.sar_meas_start1.meas1_start_sar = 0;
+    SENS.sar_meas_start1.meas1_start_sar = 1;
+    while(SENS.sar_meas_start1.meas1_done_sar == 0);
+    adc_value = SENS.sar_meas_start1.meas1_data_sar;
+    return adc_value;
+}
+
+void IRAM_ATTR onTimer() {
+    input[sample_pointer++] = local_adc1_read(ADC1_CHANNEL_0)-1362;
+  
+  if (sample_pointer%SAMPLES == 0) { 
+    // Notify adcTask that the buffer is full.
+    portENTER_CRITICAL_ISR(&timerMux);
+    if(fft_condition){
+      Serial.println("OVERLAPPED!");
+    }
+    fft_condition = true;
+    portEXIT_CRITICAL_ISR(&timerMux);
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(FFT_Task, &xHigherPriorityTaskWoken);
+    if (xHigherPriorityTaskWoken) {
+      portYIELD_FROM_ISR();
+    }
+  }  
+  sample_pointer = sample_pointer%(SAMPLES*LOOPS);
+}
+
+void fft_loop(void * pvParameters){
+  float peak = 0;
+  float old_peak = peak;
+  char note[3];
+  char old_note[3];
+  char song_note[3];
+  while(true){
+  uint32_t tcount = ulTaskNotifyTake(pdFALSE, pdMS_TO_TICKS(1000));  
+  portENTER_CRITICAL_ISR(&timerMux);
+  if(fft_condition){
+    fft_condition = false;
+     portEXIT_CRITICAL_ISR(&timerMux);
+      speed_timer = micros();
+      peak = Approx_FFT(input + fft_pointer*SAMPLES,SAMPLES,SAMPLE_FREQ);
+      note_name(peak,note);
+//      int fft_time = micros()-fft_timer;
+//      Serial.print("Time(Microseconds):");
+//      Serial.println(fft_time);
+//      Serial.print("Peak(1024 Samples):");
+//      Serial.println(peak);
+      if(song_to_compare.notes[song_pointer] == 0.0 & strcmp(note,old_note) == 0){
+          song_to_compare.notes[song_pointer] = peak;
+          strncpy(song_note,note,3);
+      }else if(strcmp(note,old_note) == 0 & strcmp(song_note,old_note) != 0){
+        song_pointer++;
+      }
+   fft_pointer = ++fft_pointer%LOOPS;
+   old_peak = peak;
+   note_name(old_peak,old_note);
+   Serial.println(micros()-speed_timer);
+  }else{
+   portEXIT_CRITICAL_ISR(&timerMux);
+  }
+  }
+}
+
 void setup() {
   Serial.begin(115200); //begin serial comms
   if(psramFound()){
@@ -251,15 +322,12 @@ void setup() {
   pinMode(BUTTON2, INPUT_PULLUP);
   state = 0;
   old_state = 0;
-  record_timer = micros();
-  samples = (int*)ps_malloc(sizeof(int)*NUM_SAMPLES);
-  frequencies = (std::complex<double>*)ps_malloc(sizeof(std::complex<double>)*4092);
-//  Serial.println(ESP.getFreePsram());
-  samples[0] = 1500;
-  pinMode(AUDIO_TRANSDUCER, OUTPUT);
-  ledcSetup(AUDIO_PWM, 0, 12);//12 bits of PWM precision
-  ledcWrite(AUDIO_PWM, 0); //0 is a 0% duty cycle for the NFET
-  ledcAttachPin(AUDIO_TRANSDUCER, AUDIO_PWM);
+  input = (int*)ps_malloc(sizeof(int)*SAMPLES*LOOPS);
+  xTaskCreatePinnedToCore(fft_loop, "Handler Task", 20000, NULL, 0, &FFT_Task,0);
+//  adcTimer = timerBegin(0, 80, true); // 80 MHz / 80 = 1 MHz hardware clock for easy figuring
+//  timerAttachInterrupt(adcTimer, &onTimer, true); // Attaches the handler function to the timer 
+//  timerAlarmWrite(adcTimer, 40, true); // Interrupts when counter == 45, i.e. 22.222 times a second
+//  timerAlarmEnable(adcTimer);
   Serial.println("Finished setup");
   get_timer = millis();
 }
@@ -294,7 +362,6 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
         screen_set(0, 1, 90, text);
       }
       if(millis() - get_timer > 500) { // every 3 seconds, try to get a new song
-        delay(3500);
         get_timer = millis();
         Serial.print(get_timer);
         sprintf(request, GET_URL);
@@ -320,7 +387,10 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
           }
           song_to_play.note_period = doc["note_duration"];
           strcpy(old_response, response);
-          if(song_to_play.length != 0) state = PLAY;
+          if(song_to_play.length != 0){
+            delay(3500);
+            state = PLAY;
+          }
         }
       }
       break;
@@ -348,14 +418,7 @@ uint8_t screen_update(uint8_t state, uint8_t old_state, int play, int song) {
       state = TO_SCORE;
       break;
     case TO_SCORE: // show score on leaderboard
-            xTaskCreatePinnedToCore(
-          loop2, /* Function to implement the task */
-          "Analyzing", /* Name of the task */
-          10000,  /* Stack size in words */
-          NULL,  /* Task input parameter */
-          0,  /* Priority of the task */
-          &FFTTask,  /* Task handle. */
-          0); /* Core where the task should run */
+         
 //      delay(60000);
       state = SCORE;
       break;
@@ -434,87 +497,19 @@ void play_song() {
   unsigned long starting = millis();
   strcpy(text, "Look at screen!");
   screen_set(1,1,midy,text);
-  // @HERBIE, COMMENT IN IF THIS IS THE CODE YOU NEED TO RECORD
-//  xTaskCreatePinnedToCore(
-//      record_loop, /* Function to implement the task */
-//      "Recording", /* Name of the task */
-//      10000,  /* Stack size in words */
-//      NULL,  /* Task input parameter */
-//      0,  /* Priority of the task */
-//      &RecordTask,  /* Task handle. */
-//      0); /* Core where the task should run */
+  adcTimer = timerBegin(0, 80, true); // 80 MHz / 80 = 1 MHz hardware clock for easy figuring
+  timerAttachInterrupt(adcTimer, &onTimer, true); // Attaches the handler function to the timer 
+  timerAlarmWrite(adcTimer, 40, true); // Interrupts when counter == 45, i.e. 22.222 times a second
+  timerAlarmEnable(adcTimer);
   new_note = song_to_play.notes[0];
   while(i<song_to_play.length) {
     if(millis() - starting > song_to_play.note_period) {
       starting = millis();
       i++;
       new_note = song_to_play.notes[i];
-      Serial.println(new_note);
-//      note_name(new_note, note); // COMMENT BACK IN IF YOU WANT TO SEE NOTES ON SCREEN
-//      strcpy(text, note);
-//      screen_set(1,2,midy,text);
-//      ledcWriteTone(AUDIO_PWM, new_note); // COMMENT BACK IN IF YOU WANT TO TEST NOTES PLAYED IN song_to_play.notes
+//      Serial.println(new_note);
     }
   }
-  // PREVIOUS LCD DISPLAY CODE, LEAVING FOR REFERENCE
-//  int cols = 6; // 6 notes per column
-//  int rows = 6; // 6 rows of notes
-//  int top = 2;
-//  int left = 2;
-//  int down = 125;
-//  int right = 150;
-//  int i = 0;
-//  int j = 0; // index for all notes per screen
-//  int k = 0; // index for note being played one at a time
-//  int counter = 0; // counts what 'screen' one is on
-//  xTaskCreatePinnedToCore(
-//      record_loop, /* Function to implement the task */
-//      "Recording", /* Name of the task */
-//      10000,  /* Stack size in words */
-//      NULL,  /* Task input parameter */
-//      0,  /* Priority of the task */
-//      &RecordTask,  /* Task handle. */
-//      0); /* Core where the task should run */
-//      
-//  tft.setTextSize(1);
-//  unsigned long starting = millis();
-//
-//  while(i<song_to_play.length) { 
-//    j = i%(cols*rows); 
-//    new_note = song_to_play.notes[i];
-//    note_name(new_note,note); // new note is freq, note is pointer
-//    tft.setCursor(left+right/cols*(j%cols),top+down/rows*(j/cols));
-//    tft.print(note);
-//    i++;
-//    if(j == 0) starting = millis();
-//    if(j == cols*rows-1 || (j == song_to_play.length%(cols*rows)-1 && counter == song_to_play.length/(cols*rows))) { // on the last note of the screen, or on , play song
-//      k = 0;
-//      while(k < cols*rows) {
-//        if(millis() - starting > song_to_play.note_period) {
-//          starting = millis();
-//          new_note = song_to_play.notes[k+counter*cols*rows];
-//          ledcWriteTone(AUDIO_PWM, new_note);
-//          if(k!=0){ // turn old note back white
-//            starting = millis();
-//            old_note = song_to_play.notes[k-1+counter*cols*rows];
-//            note_name(old_note, note);
-//            tft.setTextColor(TEXT,BACK);
-//            tft.setCursor(left+right/cols*((k-1)%cols),top+down/rows*((k-1)/cols));
-//            tft.print(note);
-//          }
-//          note_name(new_note,note); // turn new note green while displaying
-//          tft.setCursor(left+right/cols*(k%cols),top+down/rows*(k/cols));
-//          tft.setTextColor(NOTE,BACK);
-//          tft.print(note);
-//          k++;
-//        }
-//        if(k == song_to_play.length%(cols*rows) && counter == song_to_play.length/(cols*rows)) break;
-//      }
-//      tft.setTextColor(TEXT,BACK);
-//      counter++;
-//    }
-//    if(j == 0) tft.fillScreen(BACK);
-//  }
   
   strcpy(text,"Nice job! Calculating");
   screen_set(1,1,midy,text);
@@ -533,6 +528,7 @@ float calculate_score() { // function will be much longer once the server side c
   float playing = 0.0;
   float comparing = 0.0;
   for(int i = 0; i < song_to_compare.length; i++) { // adding the log of the error to account for exponential increase of notes over octaves
+    Serial.println(song_to_compare.notes[i]);
     if(song_to_play.notes[i] > CO0/2) playing = log10(song_to_play.notes[i]); // if note is near 0, don't take log, keep as 0.0
     if(song_to_compare.notes[i] > CO0/2) comparing = log10(song_to_compare.notes[i]);
     error_sum += abs(playing-comparing);
@@ -588,89 +584,5 @@ void note_name(float freq, char* note) {
       strcpy(note, letter);
       strncat(note, &octave,1);
     }
-  }
-}
-
-void loop2(void * pvParameters){
-  int num_record = (int)(song_to_play.length*song_to_play.note_period);
-  while(true){
-  for(int i = 0; i < (int)(num_record/SAMPLE_FREQ); i++){
-    if(flags[i]==1){
-      fft(samples + SAMPLE_FREQ*i,frequencies, SAMPLE_FREQ);
-      flags[i] = 0;
-      int max_index = 0;
-      for(int i = 0; i < SAMPLE_FREQ/2; i++){
-//        Serial.print("Frequency:");
-//        Serial.print(i);
-//        Serial.print(",");
-////        Serial.print("Magnitude:");
-//        Serial.println(std::abs(frequencies[i]));
-        if(std::abs(frequencies[i]) > std::abs(frequencies[max_index])){
-          max_index = i;
-        }
-      }
-//   Serial.print("Frequency(Hz):");
-//   Serial.println(max_index);
-//   Serial.print("Note:");
-//   Serial.println(find_note(max_index/2));
-    song_to_compare.notes[i] = max_index;
-    Serial.println(max_index);
-    note_name(max_index, note);
-    Serial.println(note);
-    }
-    }
-      vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
-}
-
-
-void readMic(){ //Read value from microphone
-  if(micros()-record_timer < (int)(1000000/SAMPLE_FREQ)){
-    Serial.println("TOO SLOW!");
-  }
-  while(micros()-record_timer < (int)(1000000/SAMPLE_FREQ)){};
-  record_timer = micros(); 
-  int raw_reading = analogRead(A0);
-  int clean_reading = raw_reading-1362;
-  samples[sample_pointer] = clean_reading;
-  sample_pointer++;
-//  sample_pointer=sample_pointer%NUM_SAMPLES;
-  if(sample_pointer %SAMPLE_FREQ == 0){
-    flags[sample_pointer/SAMPLE_FREQ -1] = 1;
-  }
-}
-
-//char find_note(int frequency){
-//for(int i = 0; i <7;i++){
-//  if(abs((int)(notes[i])-frequency) < 20){
-//    return letters[i];
-//  }
-//  vTaskDelay(10 / portTICK_PERIOD_MS);
-//}
-////Serial.println(frequency);
-//return ' ';
-//}
-
-void record_loop(void * pvParameters) {
-  int num_record = (int)(song_to_play.length*song_to_play.note_period);
-while(true){
-    if(sample_pointer<num_record){
-    readMic();
-    }else{
-      flags[SAMPLE_DURATION-1] = 1;
-      Serial.print("Time Elapsed(ms):");
-      Serial.println(millis()-speed_timer);
-//      Serial.print("Melody:");
-//      for(int i = 0; i < SAMPLE_DURATION; i++){
-//        Serial.print(melody[i]);
-//        Serial.print("(");
-//        Serial.print(pitches[i]);
-//        Serial.println(")");
-//        Serial.print(" ");
-//      }
-      sample_pointer = 1;
-      break;
-    }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
