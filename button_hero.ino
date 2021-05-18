@@ -18,8 +18,8 @@ TFT_eSPI tft = TFT_eSPI();
 const char USER[] = "umagana"; //CHANGE YOUR USER VARIABLE!!!
 const char GET_URL[] = "GET http://608dev-2.net/sandbox/sc/team27/button_hero_server/data_to_esp32.py HTTP/1.1\r\n";
 const char POST_URL[] = "POST http://608dev-2.net/sandbox/sc/team27/button_hero_server/game_status.py HTTP/1.1\r\n";
-const char network[] = "18skulls";
-const char password[] = "pksMIT2021";
+const char network[] = "MIT";
+const char password[] = "";
 uint8_t channel = 1; //network channel on 2.4 GHz
 byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP you're targeting.
 WiFiClient client2; //global WiFiClient Secure object
@@ -236,9 +236,9 @@ void IRAM_ATTR onTimer() {
 void fft_loop(void * pvParameters){
   float peak = 0;
   float old_peak = peak;
-  char note[3];
-  char old_note[3];
-  char song_note[3];
+  char note[4];
+  char old_note[4];
+  char song_note[4];
   while(true){
   uint32_t tcount = ulTaskNotifyTake(pdFALSE, pdMS_TO_TICKS(1000));  
   portENTER_CRITICAL_ISR(&timerMux);
@@ -256,13 +256,13 @@ void fft_loop(void * pvParameters){
       if(song_to_compare.notes[song_pointer] == 0.0 & strcmp(note,old_note) == 0){
           song_to_compare.notes[song_pointer] = peak;
           strncpy(song_note,note,3);
-      }else if(strcmp(note,old_note) == 0 & strcmp(song_note,old_note) != 0){
-        song_pointer++;
+          Serial.println(note);
       }
    fft_pointer = ++fft_pointer%LOOPS;
    old_peak = peak;
    strncpy(old_note,note,3);
-   Serial.println(micros()-speed_timer);
+   note_name(old_peak,old_note);
+//   Serial.println(micros()-speed_timer);
   }else{
    portEXIT_CRITICAL_ISR(&timerMux);
   }
@@ -495,7 +495,7 @@ void intro() {
 void play_song() {
   int i = 0;
   unsigned long starting = millis();
-  strcpy(text, "Play");
+  strcpy(text, "Playing");
   screen_set(1,1,midy-15,text);
   strcpy(text, song_to_play.title);
   screen_set(0,1,midy,text);
@@ -511,6 +511,7 @@ void play_song() {
       starting = millis();
       i++;
       new_note = song_to_play.notes[i];
+      song_pointer++;
 //      Serial.println(new_note);
     }
   }
@@ -531,17 +532,31 @@ float calculate_score() { // function will be much longer once the server side c
   float denom_sum = 0.0;
   float playing = 0.0;
   float comparing = 0.0;
-  for(int i = 0; i < song_to_compare.length; i++) { // adding the log of the error to account for exponential increase of notes over octaves
-//    Serial.println(song_to_compare.notes[i]);
+  Serial.print("Length play: ");
+  Serial.print(song_to_play.length);
+  Serial.print("Length compare: ");
+  Serial.println(song_to_compare.length);
+  for(int i = 0; i < song_to_play.length; i++) { // adding the log of the error to account for exponential increase of notes over octaves
     if(song_to_play.notes[i] > CO0/2) playing = log10(song_to_play.notes[i]); // if note is near 0, don't take log, keep as 0.0
+    else playing = song_to_play.notes[i];
     if(song_to_compare.notes[i] > CO0/2) comparing = log10(song_to_compare.notes[i]);
+    else comparing = song_to_compare.notes[i];
 //    if(abs(playing-comparing) > difficulty) error_sum += playing;
 //    else error_sum += abs(playing-comparing);
+    Serial.print("PLAY: log(");
+    Serial.print(song_to_play.notes[i]);
+    Serial.print(") = ");
+    Serial.print(playing);
+    Serial.print("  COMPARE: log(");
+    Serial.print(song_to_compare.notes[i]);
+    Serial.print(") = ");
+    Serial.println(comparing);
     error_sum += abs(playing-comparing);
     denom_sum += playing;
   }
   strcpy(text,"Calculating score...");
   screen_set(1,1,midy,text);
+  Serial.println(100*(1-error_sum/denom_sum));
   return 100*(1-error_sum/denom_sum);
 }
 
