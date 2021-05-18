@@ -538,9 +538,9 @@ float calculate_score() { // function will be much longer once the server side c
   Serial.println(song_to_compare.length);
   for(int i = 0; i < song_to_play.length; i++) { // adding the log of the error to account for exponential increase of notes over octaves
     if(song_to_play.notes[i] > CO0/2) playing = log10(song_to_play.notes[i]); // if note is near 0, don't take log, keep as 0.0
-    else playing = song_to_play.notes[i];
+    else playing = 0;
     if(song_to_compare.notes[i] > CO0/2) comparing = log10(song_to_compare.notes[i]);
-    else comparing = song_to_compare.notes[i];
+    else comparing = 0;
 //    if(abs(playing-comparing) > difficulty) error_sum += playing;
 //    else error_sum += abs(playing-comparing);
     Serial.print("PLAY: log(");
