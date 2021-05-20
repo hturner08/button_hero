@@ -5,7 +5,41 @@ uint8_t char_append(char* buff, char c, uint16_t buff_size) {
   buff[len + 1] = '\0';
   return true;
 }
+void connectWiFi(){
+  int n = WiFi.scanNetworks();
+  if (n == 0) {
+    Serial.println("no networks found");
+  } else {
+    Serial.print(n);
+    Serial.println(" networks found");
+  }
+  delay(100); //wait a bit (100 ms)
 
+  //if using regular connection use line below:
+  WiFi.begin(network, password);
+
+  uint8_t count = 0; //count used for Wifi check times
+  Serial.print("Attempting to connect to ");
+  Serial.println(network);
+  while (WiFi.status() != WL_CONNECTED && count < 24) {
+    delay(500);
+    Serial.print(".");
+    count++;
+  }
+  delay(2000);
+  if (WiFi.isConnected()) { //if we connected then print our IP, Mac, and SSID we're on
+    Serial.println("CONNECTED!");
+    Serial.printf("%d:%d:%d:%d (%s) (%s)\n", WiFi.localIP()[3], WiFi.localIP()[2],
+                  WiFi.localIP()[1], WiFi.localIP()[0],
+                  WiFi.macAddress().c_str() , WiFi.SSID().c_str());
+    delay(500);
+  } else { //if we failed to connect just Try again.
+    Serial.println("Failed to Connect :/  Going to restart");
+    Serial.println(WiFi.status());
+    ESP.restart(); // restart the ESP (proper way)
+  }
+  
+}
 void do_http_request(char* host, char* request, char* response, uint16_t response_size, uint16_t response_timeout, uint8_t serial){
   if (client2.connect(host, 80)) { //try to connect to host on port 80
 //    if (serial) Serial.print(request);//Can do one-line if statements in C without curly braces
@@ -36,6 +70,49 @@ void do_http_request(char* host, char* request, char* response, uint16_t respons
   }
 }  
 
+void do_song_request(){
+        sprintf(request, GET_URL);
+        strcat(request, "Host: 608dev-2.net\r\n"); //add more to the end
+        strcat(request, "\r\n"); //add blank line!
+        do_http_request("608dev-2.net", request, response, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+        if(old_response != response) {
+          char* first_ind = strchr(response, '{');
+          DynamicJsonDocument doc(8000);
+          DeserializationError error = deserializeJson(doc, first_ind);
+          if (error) {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.f_str());
+            return;
+          }
+          strcpy(song_to_play.title,doc["title"]);
+          strcpy(song_to_play.artist,doc["artist"]);
+          strcpy(song_to_play.user,doc["user"]);
+          song_to_play.length = doc["note_count"];
+          for(int i=0; i< song_to_play.length; i++) {
+            song_to_play.notes[i] = doc["frq"][i];
+          }
+          song_to_play.note_period = doc["note_duration"];
+          strcpy(old_response, response);
+          if(song_to_play.length != 0){
+            delay(3900);
+            state = PLAY;
+          }
+        }
+}
+
+void send_score(){
+        char body[100]; //for body
+        sprintf(body,"user=%s&result=%f",song_to_play.user,score);
+        int body_len = strlen(body);  //calculate body length (for header reporting)
+        sprintf(request_score, POST_URL);
+        strcat(request_score, "Host: 608dev-2.net\r\n"); //add more to the end
+        strcat(request_score,"Content-Type: application/x-www-form-urlencoded\r\n");
+        sprintf(request_score+strlen(request_score),"Content-Length: %d\r\n", body_len);
+        strcat(request_score, "\r\n"); 
+        strcat(request_score,body); 
+        strcat(request_score,"\r\n"); 
+        do_http_request("608dev-2.net", request_score, response_score, OUT_BUFFER_SIZE, RESPONSE_TIMEOUT, true);
+}
 // ALL NOTES in Hz (names are written with the letter O because some letter-number combinations are already C preset variable names)
 //float CO0 = 16.35;
 //float CS0 = CO0*pow(2,1.0/12.0);
