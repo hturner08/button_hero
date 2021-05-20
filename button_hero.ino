@@ -19,7 +19,8 @@ const char POST_URL[] = "POST http://608dev-2.net/sandbox/sc/team27/button_hero_
 const char network[] = "MIT";
 const char password[] = "";
 uint8_t channel = 1; //network channel on 2.4 GHz
-byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP you're targeting.
+//byte bssid[] = {0x04, 0x95, 0xE6, 0xAE, 0xDB, 0x41}; //6 byte MAC address of AP you're targeting.
+byte bssid[] = {0x8C,0xAA,0xB5,0xB5,0xB0,0x14};
 WiFiClient client2; //global WiFiClient Secure object
 const int RESPONSE_TIMEOUT = 10000; //ms to wait for response from host
 const int POSTING_PERIOD = 6000; //ms to wait between posting step
@@ -231,7 +232,7 @@ void loop() {
 switch(state){
   case IDLE:
         if(state != old_state){
-           tft.setTextColor(TEXT, BACK); //set color for font
+          tft.setTextColor(TEXT, BACK); //set color for font
           strcpy(text,"BUTTON");
           screen_set(1, 2, 40, text);
           strcpy(text,"HERO");
@@ -240,6 +241,7 @@ switch(state){
           screen_set(0, 1, 80, text);
           strcpy(text,"song...");
           screen_set(0, 1, 90, text);
+          old_state = state;
         }
         else if(millis() - get_timer > 1000) { // every .1 seconds, try to get a new song
         get_timer = millis();
@@ -258,8 +260,12 @@ switch(state){
       screen_set(0,1,midy+15,text);
       new_note = song_to_play.notes[0];
       note_name(new_note,song_note);
+      song_pointer = 0;
+      sample_pointer = 0;
+      fft_pointer = 0;
       WiFi.disconnect();
       timerAlarmEnable(adcTimer);
+//      song_pointer = 1;
       while(song_pointer==0);
       Serial.println("Gate 3");
       while(song_pointer<song_to_play.length) {
@@ -285,6 +291,7 @@ switch(state){
       strcpy(text,"Nice job! Calculating..");
       screen_set(1,1,midy,text);
       delay(1000);
+      old_state = state;
       state=SCORE;
       break;
    case SCORE:
@@ -301,6 +308,7 @@ switch(state){
       strcpy(text,"a new song");
       screen_set(0, 1, midy+40, text);
       delay(5000);
+      old_state = state;
       state = IDLE;
       break;
 }

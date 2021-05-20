@@ -16,13 +16,15 @@ void connectWiFi(){
   delay(100); //wait a bit (100 ms)
 
   //if using regular connection use line below:
-  WiFi.begin(network, password);
+  WiFi.begin(network);
 
   uint8_t count = 0; //count used for Wifi check times
   Serial.print("Attempting to connect to ");
   Serial.println(network);
-  while (WiFi.status() != WL_CONNECTED && count < 24) {
-    delay(500);
+  while (WiFi.status() != WL_CONNECTED && count < 20) {
+    WiFi.disconnect();
+    WiFi.begin(network);
+    delay(8000);
     Serial.print(".");
     count++;
   }
